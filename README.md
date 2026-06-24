@@ -4,6 +4,8 @@ View Wigle wardriving CSV exports on a map — route, WiFi access points, and
 Bluetooth (BLE) devices. Everything runs in your browser; files are never
 uploaded or stored.
 
+See it live at https://wardrive.caueb.com.
+
 ## Use
 
 Open the site, then **Load CSV** (or drag a file onto the map). Loaded data
