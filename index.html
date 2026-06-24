@@ -1,0 +1,125 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#0c1116" />
+  <title>WardriveMap — Wigle CSV Viewer</title>
+  <meta name="description" content="Load Wigle wardriving CSV files and view the route, WiFi and Bluetooth devices on a map. Runs entirely in your browser — no upload, no storage." />
+  <link rel="stylesheet" href="vendor/leaflet/leaflet.css" />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <header class="app-header">
+    <div class="brand">
+      <span class="brand-mark" aria-hidden="true">
+        <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M5 12.55a11 11 0 0 1 14.08 0" />
+          <path d="M1.42 9a16 16 0 0 1 21.16 0" />
+          <path d="M8.53 16.11a6 6 0 0 1 6.95 0" />
+          <circle cx="12" cy="20" r="1" />
+        </svg>
+      </span>
+      <h1>Wardrive<span>Map</span></h1>
+    </div>
+    <div class="header-actions">
+      <label for="fileInput" class="file-btn" title="Load Wigle CSV files">
+        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="M17 8l-5-5-5 5"/><path d="M12 3v12"/></svg>
+        <span>Load CSV</span>
+      </label>
+      <input id="fileInput" type="file" accept=".csv,text/csv" multiple hidden />
+    </div>
+  </header>
+
+  <section id="mapPage" class="page map-page active">
+    <!-- Mobile segmented switcher: which panel is visible on small screens -->
+    <div class="mobile-switch" role="tablist" aria-label="Map view">
+      <button type="button" class="seg active" data-panel="captures" role="tab">Captures</button>
+      <button type="button" class="seg" data-panel="map" role="tab">Map</button>
+      <button type="button" class="seg" data-panel="devices" role="tab">Devices</button>
+    </div>
+
+    <aside class="left-panel captures-panel" data-panel="captures">
+      <div class="panel-header">
+        <h2>Captures</h2>
+        <button id="clearButton" class="secondary icon-btn" type="button" title="Clear all loaded captures" aria-label="Clear all" hidden>
+          <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
+          </svg>
+        </button>
+      </div>
+
+      <div class="filter-group sort-group">
+        <span class="filter-label">Sort by</span>
+        <details class="menu-filter sort-filter" id="sortFilter">
+          <summary id="sortSummary">Date newest first</summary>
+          <div class="menu-filter-menu" id="sortMenu" role="listbox" aria-label="Sort captures">
+            <button type="button" class="menu-opt active" role="option" data-sort="date-desc">Date newest first</button>
+            <button type="button" class="menu-opt" role="option" data-sort="date-asc">Date oldest first</button>
+            <button type="button" class="menu-opt" role="option" data-sort="name-asc">Name A–Z</button>
+            <button type="button" class="menu-opt" role="option" data-sort="name-desc">Name Z–A</button>
+          </div>
+        </details>
+      </div>
+
+      <div id="captureList" class="capture-list"></div>
+
+      <p id="loadStatus" class="status"></p>
+    </aside>
+
+    <main class="map-shell" data-panel="map">
+      <div id="map"></div>
+
+      <section id="summary" class="summary-overlay muted" hidden></section>
+
+      <div class="legend">
+        <span><i class="route"></i> Route</span>
+        <span><i class="wifi"></i> WiFi</span>
+        <span><i class="ble"></i> BLE</span>
+      </div>
+      <p id="mapStatus" class="map-status"></p>
+
+      <!-- Empty-state drop zone shown until a file is loaded -->
+      <div id="dropZone" class="drop-zone">
+        <div class="drop-inner">
+          <svg viewBox="0 0 24 24" width="40" height="40" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="M17 8l-5-5-5 5"/><path d="M12 3v12"/></svg>
+          <h3>Drop Wigle CSV files here</h3>
+          <p>or use <strong>Load CSV</strong> in the top bar.<br>Everything runs in your browser — nothing is uploaded or stored.</p>
+        </div>
+      </div>
+    </main>
+
+    <div class="resize-handle" id="devicesResizer" role="separator" aria-orientation="vertical" aria-label="Resize devices panel" tabindex="0" title="Drag to resize"></div>
+    <aside class="right-panel devices-panel" data-panel="devices">
+      <div class="panel-header">
+        <h2>Devices</h2>
+        <span id="deviceCount" class="badge" hidden>0</span>
+      </div>
+      <p id="devicePanelHint" class="panel-hint">Load a capture to list devices by capture time.</p>
+
+      <div id="deviceFilters" class="device-filters" hidden>
+        <div class="filter-group">
+          <span class="filter-label">Type</span>
+          <div class="seg-filter" id="typeFilter" role="group" aria-label="Filter by device type">
+            <button type="button" class="seg-btn active" data-type="ALL">All</button>
+            <button type="button" class="seg-btn" data-type="WIFI">WiFi</button>
+            <button type="button" class="seg-btn" data-type="BLE">Bluetooth</button>
+          </div>
+        </div>
+        <div class="filter-group">
+          <span class="filter-label">Auth</span>
+          <details class="menu-filter auth-filter" id="authFilter">
+            <summary id="authFilterSummary">All auth types</summary>
+            <div class="menu-filter-menu auth-filter-menu" id="authFilterMenu"></div>
+          </details>
+        </div>
+      </div>
+
+      <div id="deviceList" class="device-list"></div>
+    </aside>
+  </section>
+
+  <script src="vendor/leaflet/leaflet.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
