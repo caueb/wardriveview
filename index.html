@@ -39,13 +39,15 @@
       <button type="button" class="seg" data-panel="devices" role="tab">Devices</button>
     </div>
 
-    <aside class="left-panel captures-panel" data-panel="captures">
+    <aside id="capturesPanel" class="left-panel captures-panel" data-panel="captures">
       <div class="panel-header">
         <h2>Captures</h2>
-        <button id="clearButton" class="secondary icon-btn" type="button" title="Clear all loaded captures" aria-label="Clear all" hidden>
-          <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <span id="captureCount" class="badge" hidden>0</span>
+        <button id="clearButton" class="secondary clear-btn" type="button" title="Clear all loaded captures" aria-label="Clear all captures" hidden>
+          <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
           </svg>
+          <span>Clear</span>
         </button>
       </div>
 
@@ -68,6 +70,11 @@
     </aside>
 
     <main class="map-shell" data-panel="map">
+      <button id="capturesToggle" class="panel-edge-toggle" type="button" title="Collapse panel" aria-label="Collapse captures panel" aria-expanded="true" aria-controls="capturesPanel">
+        <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <polyline points="15 18 9 12 15 6"/>
+        </svg>
+      </button>
       <div id="map"></div>
 
       <section id="summary" class="summary-overlay muted" hidden></section>

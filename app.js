@@ -5,10 +5,28 @@
 const map = L.map('map');
 window.addEventListener('load', () => setTimeout(() => map.invalidateSize(), 0));
 window.addEventListener('resize', () => map.invalidateSize());
-L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-  maxZoom: 19,
-  attribution: '&copy; OpenStreetMap contributors'
-}).addTo(map);
+
+// ---- Base map styles (switchable via the layers control, persisted) ----
+const baseLayers = {
+  'Street': L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    maxZoom: 19,
+    attribution: '&copy; OpenStreetMap contributors'
+  }),
+  'Dark': L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+    maxZoom: 19,
+    subdomains: 'abcd',
+    attribution: '&copy; OpenStreetMap contributors &copy; CARTO'
+  }),
+  'Satellite': L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+    maxZoom: 19,
+    attribution: 'Tiles &copy; Esri &mdash; Source: Esri, Maxar, Earthstar Geographics'
+  })
+};
+const BASEMAP_KEY = 'basemapStyle';
+const savedBase = localStorage.getItem(BASEMAP_KEY);
+(baseLayers[savedBase] || baseLayers['Street']).addTo(map);
+L.control.layers(baseLayers, null, { position: 'topleft' }).addTo(map);
+map.on('baselayerchange', e => localStorage.setItem(BASEMAP_KEY, e.name));
 map.setView([-33.955, 115.08], 14);
 
 const layers = L.layerGroup().addTo(map);
@@ -23,6 +41,7 @@ const mapStatusEl = document.getElementById('mapStatus');
 const loadStatusEl = document.getElementById('loadStatus');
 const fileInput = document.getElementById('fileInput');
 const clearButton = document.getElementById('clearButton');
+const captureCountEl = document.getElementById('captureCount');
 const deviceListEl = document.getElementById('deviceList');
 const devicePanelHintEl = document.getElementById('devicePanelHint');
 const deviceCountEl = document.getElementById('deviceCount');
@@ -282,6 +301,10 @@ function sortedCaptures() {
 function renderCaptureList() {
   captureListEl.innerHTML = '';
   clearButton.hidden = captures.length === 0;
+  if (captureCountEl) {
+    captureCountEl.hidden = captures.length === 0;
+    captureCountEl.textContent = captures.length;
+  }
   if (!captures.length) {
     captureListEl.innerHTML = '<p class="muted-block">No captures loaded yet.<br>Use <strong>Load CSV</strong> above or drop files on the map.</p>';
     return;
@@ -808,6 +831,31 @@ mapShellEl.addEventListener('drop', e => {
     document.documentElement.style.removeProperty('--devices-w');
     localStorage.removeItem(STORAGE_KEY);
     if (map) map.invalidateSize();
+  });
+})();
+
+// ---- Captures panel collapse/expand ----
+(function setupCapturesToggle() {
+  const STORAGE_KEY = 'capturesPanelCollapsed';
+  const panel = document.getElementById('capturesPanel');
+  const btn = document.getElementById('capturesToggle');
+  if (!panel || !btn) return;
+  function apply(collapsed) {
+    panel.classList.toggle('collapsed', collapsed);
+    btn.setAttribute('aria-expanded', String(!collapsed));
+    btn.title = collapsed ? 'Expand panel' : 'Collapse panel';
+    btn.setAttribute('aria-label', collapsed ? 'Expand captures panel' : 'Collapse captures panel');
+  }
+  if (localStorage.getItem(STORAGE_KEY) === '1') apply(true);
+  btn.addEventListener('click', () => {
+    const collapsed = !panel.classList.contains('collapsed');
+    apply(collapsed);
+    localStorage.setItem(STORAGE_KEY, collapsed ? '1' : '0');
+    // Fallback in case no width transition fires (e.g. reduced motion).
+    setTimeout(() => map.invalidateSize(), 250);
+  });
+  panel.addEventListener('transitionend', event => {
+    if (event.propertyName === 'width') map.invalidateSize();
   });
 })();
 
