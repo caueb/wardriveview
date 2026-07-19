@@ -74,6 +74,39 @@ function escapeHtml(value) {
 }
 
 /* ----------------------------------------------------------------------
+   MAC vendor (OUI) lookup.
+   oui.json is generated from the Wireshark "manuf" database and maps
+   24/28/36-bit MAC prefixes to vendor names. It is fetched lazily; lookups
+   simply return null until it has arrived.
+   ---------------------------------------------------------------------- */
+
+let ouiDb = null;
+fetch('oui.json')
+  .then(r => (r.ok ? r.json() : null))
+  .then(db => {
+    ouiDb = db;
+    // Refresh names that were rendered before the database arrived.
+    if (allDevices.length) renderDeviceList();
+  })
+  .catch(err => console.warn('OUI vendor database unavailable:', err));
+
+function macVendor(mac) {
+  if (!ouiDb || !mac) return null;
+  const hex = String(mac).replace(/[^0-9a-fA-F]/g, '').toUpperCase();
+  if (hex.length < 6) return null;
+  // Most-specific prefix wins: 36-bit, then 28-bit, then 24-bit (OUI).
+  return ouiDb.p36[hex.slice(0, 9)] || ouiDb.p28[hex.slice(0, 7)] || ouiDb.p24[hex.slice(0, 6)] || null;
+}
+
+// Locally administered addresses (bit 0x02 of the first octet) are usually
+// randomized MACs and will never match the IEEE registry.
+function isLocallyAdministeredMac(mac) {
+  const hex = String(mac || '').replace(/[^0-9a-fA-F]/g, '');
+  if (hex.length < 2) return false;
+  return (parseInt(hex.slice(0, 2), 16) & 0x02) === 0x02;
+}
+
+/* ----------------------------------------------------------------------
    CSV parsing — port of the Python backend parse_wigle_csv()
    ---------------------------------------------------------------------- */
 
@@ -258,7 +291,18 @@ function parseWigleCsv(text, filename) {
    Device / capture helpers (ported from the original frontend)
    ---------------------------------------------------------------------- */
 
-function deviceName(device) { return device.ssid || device.mac || '(unnamed device)'; }
+function deviceLabel(device) {
+  if (device.ssid) return { name: device.ssid, source: 'ssid' };
+  const vendor = macVendor(device.mac);
+  if (vendor) return { name: vendor, source: 'vendor' };
+  if (device.mac) {
+    return isLocallyAdministeredMac(device.mac)
+      ? { name: `${device.mac} (randomized)`, source: 'mac' }
+      : { name: device.mac, source: 'mac' };
+  }
+  return { name: '(unnamed device)', source: 'mac' };
+}
+function deviceName(device) { return deviceLabel(device).name; }
 function deviceTypeClass(device) { return device.type === 'BLE' ? 'ble' : 'wifi'; }
 function authPillClass(device) {
   const auth = (device.auth_mode || '').toUpperCase();
@@ -389,10 +433,14 @@ function renderDeviceList() {
     item.type = 'button';
     item.className = `device-item${device.id === selectedDeviceId ? ' active' : ''}`;
     item.dataset.deviceId = device.id;
+    const label = deviceLabel(device);
+    const nameTitle = label.source === 'vendor'
+      ? `Vendor: ${label.name} (${device.mac})`
+      : label.name;
     item.innerHTML = `
       <span class="device-dot ${deviceTypeClass(device)}" aria-hidden="true"></span>
       <span class="device-body">
-        <span class="device-name" title="${escapeHtml(deviceName(device))}">${escapeHtml(deviceName(device))}</span>
+        <span class="device-name${label.source === 'vendor' ? ' vendor' : ''}" title="${escapeHtml(nameTitle)}">${escapeHtml(label.name)}</span>
       </span>
       <span class="auth-pill ${authPillClass(device)}">${escapeHtml(authLabel(device))}</span>`;
     deviceListEl.appendChild(item);
@@ -428,14 +476,19 @@ function markerFor(device) {
   const marker = L.circleMarker([device.lat, device.lon], {
     radius, baseRadius: radius, color, fillColor: color, fillOpacity: 0.78, weight: 1
   });
-  marker.bindPopup(`
-    <strong>${escapeHtml(deviceName(device))}</strong><br>
-    MAC: ${escapeHtml(device.mac)}<br>
-    RSSI: ${escapeHtml(device.rssi ?? 'n/a')} dBm<br>
-    Auth: ${escapeHtml(device.auth_mode || 'n/a')}<br>
-    Seen: ${escapeHtml(device.first_seen_display || device.first_seen || 'n/a')}<br>
-    Type: ${escapeHtml(device.type)}
-  `);
+  // Popup content is built on open so vendor names appear once oui.json loads.
+  marker.bindPopup(() => {
+    const vendor = macVendor(device.mac);
+    return `
+      <strong>${escapeHtml(deviceName(device))}</strong><br>
+      MAC: ${escapeHtml(device.mac)}<br>
+      Vendor: ${escapeHtml(vendor || (isLocallyAdministeredMac(device.mac) ? 'Randomized MAC' : 'Unknown'))}<br>
+      RSSI: ${escapeHtml(device.rssi ?? 'n/a')} dBm<br>
+      Auth: ${escapeHtml(device.auth_mode || 'n/a')}<br>
+      Seen: ${escapeHtml(device.first_seen_display || device.first_seen || 'n/a')}<br>
+      Type: ${escapeHtml(device.type)}
+    `;
+  });
   marker.on('click', () => selectDevice(device.id, { openPopup: false }));
   return marker;
 }

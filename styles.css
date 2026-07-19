@@ -240,6 +240,7 @@ body.resizing-devices #map { pointer-events: none; }
 .device-dot.ble { background: var(--ble); box-shadow: 0 0 0 3px rgba(196,107,255,.18); }
 .device-body { min-width: 0; flex: 1; display: flex; flex-direction: column; gap: 1px; }
 .device-name { font-weight: 400; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: .9rem; }
+.device-name.vendor { font-style: italic; color: var(--text-muted); }
 .device-auth { font-size: .74rem; color: var(--text-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
 /* ---- Device filters ---- */
